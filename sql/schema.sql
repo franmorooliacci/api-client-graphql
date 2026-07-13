@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_uri TEXT UNIQUE NOT NULL,
+    title TEXT,
+    entity TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    meta_payload TEXT
+);
+
+CREATE TABLE IF NOT EXISTS assets_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER NOT NULL,
+    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    history_payload TEXT NOT NULL,
+    FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE
+);
