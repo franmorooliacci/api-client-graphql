@@ -6,20 +6,20 @@
 #include "github.h"
 #include "db.h"
 
-// Estructura auxiliar para guardar la respuesta de CURL
+// Helper structure to store the CURL response
 struct MemoryStruct {
     char *memory;
     size_t size;
 };
 
-// Callback que libcurl llama cada vez que recibe un bloque de datos
+// Callback that libcurl calls every time it receives a data chunk
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
     size_t realsize = size * nmemb;
     struct MemoryStruct *mem = (struct MemoryStruct *)userp;
 
     char *ptr = realloc(mem->memory, mem->size + realsize + 1);
     if (!ptr) {
-        printf("Sin memoria suficiente (realloc falló)\n");
+        printf("Not enough memory (realloc failed)\n");
         return 0;
     }
 
@@ -31,7 +31,7 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
     return realsize;
 }
 
-// Función auxiliar para agregar strings de forma segura manejando nulos
+// Helper function to safely add strings handling nulls
 static void add_string_or_null(cJSON *obj, const char *key, cJSON *item) {
     if (cJSON_IsString(item) && item->valuestring != NULL) {
         cJSON_AddStringToObject(obj, key, item->valuestring);
@@ -40,7 +40,7 @@ static void add_string_or_null(cJSON *obj, const char *key, cJSON *item) {
     }
 }
 
-// Extrae el valor numérico (totalCount) de un nodo anidado
+// Extracts the numeric value (totalCount) from a nested node
 static double get_nested_count(cJSON *parent, const char *node_name) {
     cJSON *node = cJSON_GetObjectItem(parent, node_name);
     if (node) {
@@ -50,12 +50,12 @@ static double get_nested_count(cJSON *parent, const char *node_name) {
     return 0;
 }
 
-// Convierte la respuesta cruda de GitHub al formato estructurado del contrato
+// Converts the raw GitHub response to the structured contract format
 static char* flatten_github_json(const char* raw_json, const char* target_type) {
     cJSON *root = cJSON_Parse(raw_json);
     if (!root) return NULL;
-
-    // --- INTERCEPTOR DE ERRORES GRAPHQL ---
+    
+    // --- GRAPHQL ERROR INTERCEPTOR ---
     cJSON *errors = cJSON_GetObjectItem(root, "errors");
     if (errors && cJSON_IsArray(errors) && cJSON_GetArraySize(errors) > 0) {
         cJSON *first_error = cJSON_GetArrayItem(errors, 0);
@@ -64,14 +64,14 @@ static char* flatten_github_json(const char* raw_json, const char* target_type) 
         if (cJSON_IsString(message)) {
             fprintf(stderr, "\nError: %s\n\n", message->valuestring);
         } else {
-            // Fallback si la estructura del error es inusual
+            // Fallback if the error structure is unusual
             char *err_str = cJSON_PrintUnformatted(errors);
             fprintf(stderr, "\nError: %s\n\n", err_str);
             free(err_str);
         }
         
         cJSON_Delete(root);
-        return NULL; // Aborta y evita guardar data vacía
+        return NULL; // Aborts and prevents saving empty data
     }
 
     cJSON *data = cJSON_GetObjectItem(root, "data");
@@ -85,7 +85,7 @@ static char* flatten_github_json(const char* raw_json, const char* target_type) 
     if (strcmp(target_type, "profile") == 0) {
         cJSON *user = cJSON_GetObjectItem(data, "user");
 
-        // Bloqueo estricto para perfiles nulos
+        // Strict block for null profiles
         if (!user || cJSON_IsNull(user)) {
             fprintf(stderr, "\nError: GitHub returned a null user. Check your token scopes or username.\n\n");
             cJSON_Delete(root);
@@ -109,8 +109,8 @@ static char* flatten_github_json(const char* raw_json, const char* target_type) 
 
     } else if (strcmp(target_type, "repository") == 0) {
         cJSON *repo = cJSON_GetObjectItem(data, "repository");
-        
-        // Bloqueo estricto para repositorios nulos
+       
+        // Strict block for null repositories
         if (!repo || cJSON_IsNull(repo)) {
             fprintf(stderr, "\nError: GitHub returned a null repository. Check your token scopes or repository name.\n\n");
             cJSON_Delete(root);
@@ -202,7 +202,7 @@ static char* flatten_github_json(const char* raw_json, const char* target_type) 
     return flat_json_str;
 }
 
-// Genera la query GraphQL dependiendo del tipo
+// Generates the GraphQL query depending on the target type
 static char* build_graphql_query(const char *target_type, const char *identifier) {
     cJSON *root = cJSON_CreateObject();
     char query_buffer[2048];
@@ -264,7 +264,7 @@ int fetch_and_store_github_data(const char *target_type, const char *identifier,
 
     char *post_data = build_graphql_query(target_type, identifier);
     if (!post_data) {
-        printf("Tipo de target no soportado: %s\n", target_type);
+        printf("Unsupported target type: %s\n", target_type);
         curl_easy_cleanup(curl);
         free(chunk.memory);
         return 1;
@@ -281,25 +281,25 @@ int fetch_and_store_github_data(const char *target_type, const char *identifier,
     int final_status = 1;
 
     if (res != CURLE_OK) {
-        fprintf(stderr, "Error de red: curl_easy_perform() falló: %s\n", curl_easy_strerror(res));
+        fprintf(stderr, "Network error: curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
     } else {
         char asset_uri[256];
         snprintf(asset_uri, sizeof(asset_uri), "github:%s:%s", target_type, identifier);
-        
-        // Transforma el JSON crudo al JSON aplanado según el contrato
+       
+        // Transforms the raw JSON to the flattened JSON according to the contract
         char *flat_payload = flatten_github_json(chunk.memory, target_type);
         
         if (flat_payload) {
             db_upsert_asset(db_path, asset_uri, identifier, target_type, flat_payload);
-            printf("Datos estructurados e insertados para %s\n", asset_uri);
+            printf("Structured data inserted for %s\n", asset_uri);
             free(flat_payload);
             final_status = 0;
         } else {
-            fprintf(stderr, "Operación abortada por error en la respuesta de GitHub.\n");
+            fprintf(stderr, "Operation aborted due to an error in the GitHub response.\n");
         }
     }
 
-    // Limpieza de memoria
+    // Memory cleanup
     cJSON_free(post_data);
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);

@@ -8,10 +8,10 @@ int db_init(const char *db_path) {
     sqlite3 *db;
     char *err_msg = 0;
     
-    // Inicializa la base de datos
+    // Initializes the database
     int rc = sqlite3_open(db_path, &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Error al abrir DB: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "Error opening DB: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
         return 1;
     }
@@ -33,10 +33,10 @@ int db_init(const char *db_path) {
         "history_payload TEXT NOT NULL, "
         "FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE);";
 
-    // Crea las tablas
+    // Creates the tables
     rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
     if (rc != SQLITE_OK ) {
-        fprintf(stderr, "Error SQL al crear tablas: %s\n", err_msg);
+        fprintf(stderr, "SQL error creating tables: %s\n", err_msg);
         sqlite3_free(err_msg);
         sqlite3_close(db);
         return 1;
@@ -54,7 +54,7 @@ int db_upsert_asset(const char *db_path, const char *asset_uri, const char *titl
         return 1;
     }
 
-    // Verifica si el asset existe
+    // Check if the asset exists
     const char *check_sql = "SELECT id, meta_payload FROM assets WHERE asset_uri = ?";
     sqlite3_prepare_v2(db, check_sql, -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, asset_uri, -1, SQLITE_STATIC);
@@ -74,9 +74,9 @@ int db_upsert_asset(const char *db_path, const char *asset_uri, const char *titl
     sqlite3_finalize(stmt);
 
     if (exists) {
-        // Si existe, compara el JSON nuevo con el viejo
+        // If it exists, compares the new JSON with the old one
         if (old_payload && strcmp(old_payload, meta_payload) != 0) {
-            // Si hubo cambios, guarda el payload viejo en assets_history
+            // If there were changes, saves the old payload in assets_history
             const char *hist_sql = "INSERT INTO assets_history (asset_id, history_payload) VALUES (?, ?)";
             sqlite3_prepare_v2(db, hist_sql, -1, &stmt, NULL);
             sqlite3_bind_int(stmt, 1, asset_id);
@@ -84,7 +84,7 @@ int db_upsert_asset(const char *db_path, const char *asset_uri, const char *titl
             sqlite3_step(stmt);
             sqlite3_finalize(stmt);
 
-            // Actualiza la tabla assets con el payload nuevo
+            // Updates the assets table with the new payload
             const char *upd_sql = "UPDATE assets SET title = ?, meta_payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
             sqlite3_prepare_v2(db, upd_sql, -1, &stmt, NULL);
             sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
@@ -94,7 +94,7 @@ int db_upsert_asset(const char *db_path, const char *asset_uri, const char *titl
             sqlite3_finalize(stmt);
         }
     } else {
-        // Si no existe, lo crea
+        // If it does not exist, creates it
         const char *ins_sql = "INSERT INTO assets (asset_uri, title, entity, provider, meta_payload) VALUES (?, ?, ?, 'github', ?)";
         sqlite3_prepare_v2(db, ins_sql, -1, &stmt, NULL);
         sqlite3_bind_text(stmt, 1, asset_uri, -1, SQLITE_STATIC);

@@ -4,36 +4,36 @@
 #include "db.h"
 #include "api.h"
 
-// Función auxiliar para leer las variables de entorno
+// Helper function to read environment variables
 void load_env(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
-        printf("No se encontro el archivo %s.\n", filename);
+        printf("File %s not found.\n", filename);
         return;
     }
     
     char line[256];
     while (fgets(line, sizeof(line), file)) {
-        // Ignora comentarios o líneas vacías
+        // Ignores comments or empty lines
         if (line[0] == '#' || line[0] == '\n') continue;
-        
-        // Limpia el salto de línea al final
+       
+        // Clears the trailing newline
         char *newline = strchr(line, '\n');
         if (newline) *newline = '\0';
-        
-        // Separa clave y valor por el signo '='
+       
+        // Separates key and value by the '=' sign
         char *eq = strchr(line, '=');
         if (eq) {
             *eq = '\0';
             char *value = eq + 1;
-            setenv(line, value, 1); // 1 = Sobrescribe si ya existe
+            setenv(line, value, 1); // 1 = Overwrites if it already exists
         }
     }
     fclose(file);
 }
 
 int main() {
-    printf("Iniciando api-client-github-graphql...\n");
+    printf("Starting api-client-github-graphql...\n");
     
     load_env(".env");
     
@@ -47,19 +47,19 @@ int main() {
 
     const char *github_token = getenv("GITHUB_TOKEN");
     if (!github_token || strlen(github_token) == 0) {
-        fprintf(stderr, "Error: GITHUB_TOKEN no esta definido en .env\n");
+        fprintf(stderr, "Error: GITHUB_TOKEN is not defined in .env\n");
         return 1;
     }
 
-    // Inicializa la base de datos
-    printf("Inicializando SQLite en: %s\n", db_path);
+    // Initializes the database
+    printf("Initializing SQLite at: %s\n", db_path);
     if (db_init(db_path) != 0) {
-        fprintf(stderr, "Error al inicializar la base de datos.\n");
+        fprintf(stderr, "Error initializing the database.\n");
         return 1;
     }
-    printf("Base de datos OK.\n");
+    printf("Database OK.\n");
 
-    // Inicia el servidor web (bloquea el hilo principal)
+    // Starts the web server (blocks the main thread)
     if (start_server(port, github_token, db_path) != 0) {
         return 1;
     }
