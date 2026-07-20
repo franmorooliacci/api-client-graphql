@@ -1,53 +1,55 @@
-## Microservicio para consumir GitHub GraphQL API
+## Microservice to consume GitHub GraphQL API
 
 ---
 
-## Descripción
+## Description
 
-Microservicio HTTP escrito en C que consulta **GitHub GraphQL API**, obtiene la metadata de perfiles o repositorios. 
-Ejemplo de caso de uso mediante curl:
+HTTP microservice written in C that queries the **GitHub GraphQL API**, fetching the metadata of profiles or repositories.
+Use case example via curl:
 
 ```bash
-# Metadata de un repositorio
+# Repository metadata
 curl -X POST http://localhost:8080/api/assets/github-graphql \
   -H "Content-Type: application/json" \
   -d '{"target_type": "repository", "identifier": "torvalds/linux"}'
 
-# Metadata de un perfil
+# Profile metadata
 curl -X POST http://localhost:8080/api/assets/github-graphql \
   -H "Content-Type: application/json" \
   -d '{"target_type": "profile", "identifier": "torvalds"}'
+
 
 ```
 
 ---
 
-## Contrato con GitHub GraphQL API
+## Contract with GitHub GraphQL API
 
-GitHub GraphQL (v4) expone un único endpoint. El cliente envía una consulta declarativa (Query) indicando exactamente qué datos necesita, y el servidor responde con un JSON con esa misma estructura.
+GitHub GraphQL (v4) exposes a single endpoint. The client sends a declarative query indicating exactly what data it needs, and the server responds with a JSON with that same structure.
 
-Documentación oficial: [https://docs.github.com/en/graphql](https://docs.github.com/en/graphql).
+Official documentation: [https://docs.github.com/en/graphql](https://docs.github.com/en/graphql).
 
-### Endpoint y Autenticación
+### Endpoint and Authentication
 
 ```http
 POST [https://api.github.com/graphql](https://api.github.com/graphql)
 Authorization: bearer <GITHUB_TOKEN>
 Content-Type: application/json
 
+
 ```
 
-**Cuota:** GraphQL calcula el costo por nodos resueltos. El límite es de 5.000 puntos por hora.
+**Quota:** GraphQL calculates the cost by resolved nodes. The limit is 5,000 points per hour.
 
 ---
 
-### Escenario A: Request de un Perfil (User)
+### Scenario A: Profile Request (User)
 
-Cuando el microservicio recibe la orden de procesar un perfil, envia la siguiente GraphQL Query a GitHub:
+When the microservice receives the order to process a profile, it sends the following GraphQL Query to GitHub:
 
 ```graphql
 query {
-  user(login: "<IDENTIFICADOR>") {
+  user(login: "<IDENTIFIER>") {
     login name bio avatarUrl company location createdAt
     followers { totalCount } following { totalCount }
     repositories(privacy: PUBLIC) { totalCount }
@@ -55,10 +57,12 @@ query {
   }
 }
 
+
 ```
 
 **Response**
-El microservicio en C parsea la respuesta de GitHub, aplana las estructuras y genera este JSON que se guarda en la base de datos:
+
+The C microservice parses the GitHub response, flattens the structures, and generates this JSON that is saved in the database:
 
 ```json
 {
@@ -75,13 +79,14 @@ El microservicio en C parsea la respuesta de GitHub, aplana las estructuras y ge
   "created_at": "2011-09-01T15:00:00Z"
 }
 
+
 ```
 
 ---
 
-### Escenario B: Request de un Repositorio (Repository)
+### Scenario B: Repository Request (Repository)
 
-Cuando el microservicio procesa un repositorio, se realiza la siguiente consulta, que incluye estadísticas y el desglose de lenguajes usados:
+When the microservice processes a repository, the following query is executed, which includes statistics and the breakdown of used languages:
 
 ```graphql
 query {
@@ -100,10 +105,12 @@ query {
   }
 }
 
+
 ```
 
 **Response**
-Al igual que con el perfil, el microservicio extrae los nodos anidados (como `languages.edges` o `repositoryTopics.nodes`) para armar un JSON plano:
+
+Just like with the profile, the microservice extracts the nested nodes (such as `languages.edges` or `repositoryTopics.nodes`) to build a flat JSON:
 
 ```json
 {
@@ -137,21 +144,90 @@ Al igual que con el perfil, el microservicio extrae los nodos anidados (como `la
   }
 }
 
+
 ```
 
 ---
 
-## Mapeo a la base de datos
+## Database Mapping
 
-El JSON procesado por el microservicio se guarda en la tabla `assets`:
+The JSON processed by the microservice is saved in the `assets` table:
 
-| Columna | Origen |
+| Column | Origin |
 | --- | --- |
-| `asset_uri` | `github:profile:<login>` o `github:repo:<owner>/<name>` (`UNIQUE`) |
-| `title` | `name` (perfil) o `name` (repositorio) |
-| `entity` | `"profile"` o `"repository"` |
-| `provider` | `"github"` |
-| `meta_payload` | JSON estructurado por el microservicio en C |
-| `created_at` | Gestionado por DB |
-| `updated_at` | Gestionado por DB |
+| `asset_uri` | `github:profile:<login>` or `github:repo:<owner>/<name>` (`UNIQUE`) |
+| `title` | `name` (profile) or `name` (repository) |
+| `entity` | `"profile"` or `"repository"`<br>
 
+ |
+| `provider` | `"github"`<br>
+
+ |
+| `meta_payload` | Structured JSON by the C microservice |
+| `created_at` | Managed by DB |
+| `updated_at` | Managed by DB |
+
+---
+
+## Dependencies
+
+This microservice is written in C and relies on the following dynamically linked libraries:
+
+* `libmicrohttpd`: For the HTTP server.
+* `libcurl`: For HTTP requests to the GitHub API.
+* `cJSON`: For parsing and building JSON payloads.
+* `sqlite3`: For the local database.
+
+To install these dependencies on a Debian-based Linux distribution, run:
+
+```bash
+sudo apt update
+sudo apt install libmicrohttpd-dev libcurl4-openssl-dev libcjson-dev libsqlite3-dev build-essential
+
+
+```
+
+---
+
+## Configuration
+
+The application reads configuration from a `.env` file located in the root directory. You must create this file before starting the server.
+
+Create a file named `.env` and configure the following variables:
+
+```ini
+# Required: Your GitHub Personal Access Token
+GITHUB_TOKEN=ghp_your_token_here
+
+# Optional: The port the HTTP server will bind to (Default: 8080)
+PORT=8080
+
+# Optional: Path to the SQLite database file (Default: ./db.sqlite3)
+DB_PATH=./db.sqlite3
+
+
+```
+
+---
+
+## Build and Execution
+
+This project uses a `Makefile` to simplify the compilation process. To build the microservice, simply run the following command in the root directory:
+
+```bash
+make
+
+
+```
+
+This will compile the source files located in the `src/` directory (`src/main.c`, `src/db.c`, `src/api.c`, `src/github.c`) and link the necessary libraries (`-lmicrohttpd -lcurl -lsqlite3 -lcjson`), generating an executable named `github_worker`.
+
+Once compiled, start the server by executing the binary:
+
+```bash
+./github_worker
+
+
+```
+
+You should see an output confirming the initialization of the database and the server listening on your configured port. The application handles `SIGINT` and `SIGTERM` signals, so you can safely stop the server gracefully at any time by pressing `Ctrl+C`.
