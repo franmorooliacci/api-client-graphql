@@ -157,12 +157,8 @@ The JSON processed by the microservice is saved in the `assets` table:
 | --- | --- |
 | `asset_uri` | `github:profile:<login>` or `github:repo:<owner>/<name>` (`UNIQUE`) |
 | `title` | `name` (profile) or `name` (repository) |
-| `entity` | `"profile"` or `"repository"`<br>
-
- |
-| `provider` | `"github"`<br>
-
- |
+| `entity` | `"profile"` or `"repository"` |
+| `provider` | `"github"` |
 | `meta_payload` | Structured JSON by the C microservice |
 | `created_at` | Managed by DB |
 | `updated_at` | Managed by DB |
