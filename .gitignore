@@ -1,4 +1,5 @@
 .env
 *.o
 *.sqlite3
-github_worker
+github_server
+github_client
