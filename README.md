@@ -5,7 +5,10 @@
 ## Description
 
 HTTP microservice written in C that queries the **GitHub GraphQL API**, fetching the metadata of profiles or repositories.
-Use case example via curl:
+
+The microservice acts as a resident local daemon listening for incoming HTTP POST requests. It expects a JSON payload containing the `target_type` (either "profile" or "repository") and the specific `identifier` of the resource. Upon receiving a valid request, the microservice queries GitHub, processes the data, and saves it locally in SQLite.
+
+You can interact with the server directly using tools like `curl`. Use case examples:
 
 ```bash
 # Repository metadata
@@ -216,14 +219,44 @@ make
 
 ```
 
-This will compile the source files located in the `src/` directory (`src/main.c`, `src/db.c`, `src/api.c`, `src/github.c`) and link the necessary libraries (`-lmicrohttpd -lcurl -lsqlite3 -lcjson`), generating an executable named `github_worker`.
+This will compile the source files located in the `src/` directory (`src/main.c`, `src/db.c`, `src/api.c`, `src/github.c`) and link the necessary libraries (`-lmicrohttpd -lcurl -lsqlite3 -lcjson`), generating an executable named `github_server`.
 
 Once compiled, start the server by executing the binary:
 
 ```bash
-./github_worker
+./github_server
 
 
 ```
 
 You should see an output confirming the initialization of the database and the server listening on your configured port. The application handles `SIGINT` and `SIGTERM` signals, so you can safely stop the server gracefully at any time by pressing `Ctrl+C`.
+
+---
+
+## CLI Usage
+
+Instead of manually starting the server and using `curl`, this project includes a CLI application (`github_client`) that automatically manages the server lifecycle and formats the HTTP requests.
+
+### Interactive Mode
+
+If you run the client without arguments, it launches a prompt loop:
+
+```bash
+./github_client
+
+```
+
+The client will automatically start the server in the background and wait for input. It will repeatedly ask for a target (profile/repo) and an identifier until you type `exit`, at which point it safely shuts down the server.
+
+### Batch Mode
+
+For scripting or quick executions without entering the menu loop, pass the target and identifier directly as arguments:
+
+```bash
+# Syntax: ./github_client <target_type> <identifier>
+./github_client repo torvalds/linux
+./github_client profile torvalds
+
+```
+
+In this mode, the client instantly forks the server, processes the single request via the local REST API, prints the formatted JSON payload from the database directly to standard output, and shuts down the server before exiting.
